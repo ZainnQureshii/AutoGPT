@@ -79,9 +79,9 @@ from .message_session import MessageSessionTool
 from .models import ErrorResponse
 from .platform_info import PlatformInfoTool
 from .raise_expert import RaiseExpertTool
+from .render_ui import RenderUITool
 from .resume_capability import ResumeCapabilityTool
 from .routines import ListRoutinesTool, ScheduleRoutineTool
-from .render_ui import RenderUITool
 from .run_agent import RunAgentTool
 from .run_capability import RunCapabilityTool
 from .run_sub_session import RunSubSessionTool
@@ -345,7 +345,7 @@ INTERACTIVE_ORIGIN_TOOLS: frozenset[str] = frozenset(
 )
 
 
-def origin_disabled_tools(origin: "ChatSessionOrigin | None") -> frozenset[str]:
+def origin_disabled_tools(origin: ChatSessionOrigin | None) -> frozenset[str]:
     """Tools to hide from a session *origin* no person is driving.
 
     Positive match, so a legacy ``None`` is hidden from too — an unknown

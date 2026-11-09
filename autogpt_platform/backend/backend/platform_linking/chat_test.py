@@ -1,7 +1,7 @@
 """Tests for chat-turn orchestration — esp. the duplicate-message guard."""
 
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -188,9 +188,8 @@ class TestStartChatTurn:
         with patch(
             "backend.platform_linking.chat.platform_linking_db",
             return_value=db_mock,
-        ):
-            with pytest.raises(NotFoundError):
-                await start_chat_turn(_request())
+        ), pytest.raises(NotFoundError):
+            await start_chat_turn(_request())
 
     @pytest.mark.asyncio
     async def test_duplicate_message_raises_and_skips_stream_create(self):
@@ -216,11 +215,9 @@ class TestStartChatTurn:
             patch(
                 "backend.platform_linking.chat.dispatch_turn",
                 new=AsyncMock(),
-            ) as mock_enqueue,
+            ) as mock_enqueue,pytest.raises(DuplicateChatMessageError)
         ):
-
-            with pytest.raises(DuplicateChatMessageError):
-                await start_chat_turn(_request())
+            await start_chat_turn(_request())
 
         mock_enqueue.assert_not_awaited()
 
@@ -444,10 +441,9 @@ class TestStartChatTurn:
             ),
             patch(
                 "backend.platform_linking.chat.create_chat_session", new=AsyncMock()
-            ) as mock_create,
+            ) as mock_create,pytest.raises(NotFoundError)
         ):
-            with pytest.raises(NotFoundError):
-                await start_chat_turn(_request(session_id="gone", file_ids=["f1"]))
+            await start_chat_turn(_request(session_id="gone", file_ids=["f1"]))
 
         mock_create.assert_not_awaited()
 
@@ -532,16 +528,15 @@ class TestStartChatTurn:
             patch(
                 "backend.platform_linking.chat.dispatch_turn",
                 new=mock_enqueue,
-            ),
+            ),pytest.raises(NotFoundError, match="no longer exists")
         ):
-            with pytest.raises(NotFoundError, match="no longer exists"):
-                await start_chat_turn(
-                    _request(
-                        platform_server_id="guild-1",
-                        session_id="expert-session",
-                        file_ids=["file-1"],
-                    )
+            await start_chat_turn(
+                _request(
+                    platform_server_id="guild-1",
+                    session_id="expert-session",
+                    file_ids=["file-1"],
                 )
+            )
 
         mock_append.assert_not_awaited()
         mock_enqueue.assert_not_awaited()
@@ -569,12 +564,11 @@ class TestStartChatTurn:
             patch(
                 "backend.platform_linking.chat_experts.experts_db",
                 return_value=MagicMock(owns_active_expert=_owns(False)),
-            ),
+            ),pytest.raises(NotFoundError, match="no longer exists")
         ):
-            with pytest.raises(NotFoundError, match="no longer exists"):
-                await start_chat_turn(
-                    _request(session_id="expert-session", file_ids=["file-1"])
-                )
+            await start_chat_turn(
+                _request(session_id="expert-session", file_ids=["file-1"])
+            )
 
         mock_append.assert_not_awaited()
 
@@ -642,9 +636,8 @@ class TestListUserChats:
         with patch(
             "backend.platform_linking.chat.platform_linking_db",
             return_value=db_mock,
-        ):
-            with pytest.raises(NotFoundError):
-                await list_user_chats(Platform.DISCORD, "pu1")
+        ), pytest.raises(NotFoundError):
+            await list_user_chats(Platform.DISCORD, "pu1")
 
     @pytest.mark.asyncio
     async def test_lists_only_the_resolved_owners_sessions(self):
@@ -824,9 +817,8 @@ class TestUploadWorkspaceFile:
         db.find_user_link_owner = AsyncMock(return_value=None)
         with patch(
             "backend.platform_linking.chat.platform_linking_db", return_value=db
-        ):
-            with pytest.raises(NotFoundError):
-                await upload_workspace_file(self._req())
+        ), pytest.raises(NotFoundError):
+            await upload_workspace_file(self._req())
 
     @pytest.mark.asyncio
     async def test_not_found_in_try_propagates_not_rejected(self):
@@ -834,9 +826,8 @@ class TestUploadWorkspaceFile:
         # write path it must propagate, not be swallowed as "rejected".
         write = AsyncMock(side_effect=NotFoundError("workspace gone"))
         p1, p2, p3 = self._patches(write)
-        with p1, p2, p3:
-            with pytest.raises(NotFoundError):
-                await upload_workspace_file(self._req())
+        with p1, p2, p3, pytest.raises(NotFoundError):
+            await upload_workspace_file(self._req())
 
     @pytest.mark.asyncio
     async def test_shared_server_upload_rejects_expert_session(self):
@@ -850,12 +841,11 @@ class TestUploadWorkspaceFile:
             patch(
                 "backend.platform_linking.chat.get_chat_session",
                 new=AsyncMock(return_value=MagicMock(expert_id="expert-1")),
-            ),
+            ),pytest.raises(NotFoundError)
         ):
-            with pytest.raises(NotFoundError):
-                await upload_workspace_file(
-                    self._req(platform_server_id="server-1", session_id="sess-exp")
-                )
+            await upload_workspace_file(
+                self._req(platform_server_id="server-1", session_id="sess-exp")
+            )
         write.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -869,10 +859,9 @@ class TestUploadWorkspaceFile:
             patch(
                 "backend.platform_linking.chat.get_chat_session",
                 new=AsyncMock(return_value=None),
-            ),
+            ),pytest.raises(NotFoundError)
         ):
-            with pytest.raises(NotFoundError):
-                await upload_workspace_file(self._req(session_id="sess-foreign"))
+            await upload_workspace_file(self._req(session_id="sess-foreign"))
         write.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -1053,9 +1042,8 @@ class TestEnsureChatSession:
         db.find_user_link_owner = AsyncMock(return_value=None)
         with patch(
             "backend.platform_linking.chat.platform_linking_db", return_value=db
-        ):
-            with pytest.raises(NotFoundError):
-                await ensure_chat_session(Platform.DISCORD, "pu1", None, None)
+        ), pytest.raises(NotFoundError):
+            await ensure_chat_session(Platform.DISCORD, "pu1", None, None)
 
 
 class TestEvaluateTurnGate:
@@ -1112,9 +1100,9 @@ class TestEvaluateTurnGate:
 
     @pytest.mark.asyncio
     async def test_rate_limited_returns_window_and_reset_message(self):
-        from datetime import timedelta, timezone
+        from datetime import timedelta
 
-        resets_at = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+        resets_at = datetime.now(UTC) + timedelta(hours=5, minutes=30)
         with (
             patch(f"{self._PATH}.is_user_paywalled", AsyncMock(return_value=False)),
             patch(

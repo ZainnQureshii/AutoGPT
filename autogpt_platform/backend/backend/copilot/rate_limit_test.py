@@ -171,14 +171,13 @@ class TestGetUsageStatus:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             side_effect=ConnectionError("Redis down"),
-        ):
-            with pytest.raises(RateLimitUnavailable):
-                await get_usage_status(
-                    _USER,
-                    daily_cost_limit=10000,
-                    weekly_cost_limit=50000,
-                    fail_closed=True,
-                )
+        ), pytest.raises(RateLimitUnavailable):
+            await get_usage_status(
+                _USER,
+                daily_cost_limit=10000,
+                weekly_cost_limit=50000,
+                fail_closed=True,
+            )
 
     @pytest.mark.asyncio
     async def test_partial_none_daily_counter(self):
@@ -335,11 +334,10 @@ class TestCheckRateLimit:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             return_value=mock_redis,
-        ):
-            with pytest.raises(RateLimitExceeded) as exc_info:
-                await check_rate_limit(
-                    _USER, daily_cost_limit=10000, weekly_cost_limit=50000
-                )
+        ), pytest.raises(RateLimitExceeded) as exc_info:
+            await check_rate_limit(
+                _USER, daily_cost_limit=10000, weekly_cost_limit=50000
+            )
         assert exc_info.value.window == "weekly"
         assert exc_info.value.resets_at == _weekly_reset_time()
 
@@ -351,11 +349,10 @@ class TestCheckRateLimit:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             side_effect=ConnectionError("Redis down"),
-        ):
-            with pytest.raises(RateLimitUnavailable):
-                await check_rate_limit(
-                    _USER, daily_cost_limit=10000, weekly_cost_limit=50000
-                )
+        ), pytest.raises(RateLimitUnavailable):
+            await check_rate_limit(
+                _USER, daily_cost_limit=10000, weekly_cost_limit=50000
+            )
 
     @pytest.mark.asyncio
     async def test_raises_unavailable_when_redis_redis_error(self):
@@ -366,11 +363,10 @@ class TestCheckRateLimit:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             return_value=mock_redis,
-        ):
-            with pytest.raises(RateLimitUnavailable):
-                await check_rate_limit(
-                    _USER, daily_cost_limit=10000, weekly_cost_limit=50000
-                )
+        ), pytest.raises(RateLimitUnavailable):
+            await check_rate_limit(
+                _USER, daily_cost_limit=10000, weekly_cost_limit=50000
+            )
 
     @pytest.mark.asyncio
     async def test_raises_unavailable_when_redis_cluster_exception(self):
@@ -387,11 +383,10 @@ class TestCheckRateLimit:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             return_value=mock_redis,
-        ):
-            with pytest.raises(RateLimitUnavailable):
-                await check_rate_limit(
-                    _USER, daily_cost_limit=10000, weekly_cost_limit=50000
-                )
+        ), pytest.raises(RateLimitUnavailable):
+            await check_rate_limit(
+                _USER, daily_cost_limit=10000, weekly_cost_limit=50000
+            )
 
     @pytest.mark.asyncio
     async def test_raises_unavailable_when_os_error(self):
@@ -400,11 +395,10 @@ class TestCheckRateLimit:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             side_effect=OSError("ECONNREFUSED"),
-        ):
-            with pytest.raises(RateLimitUnavailable):
-                await check_rate_limit(
-                    _USER, daily_cost_limit=10000, weekly_cost_limit=50000
-                )
+        ), pytest.raises(RateLimitUnavailable):
+            await check_rate_limit(
+                _USER, daily_cost_limit=10000, weekly_cost_limit=50000
+            )
 
     @pytest.mark.asyncio
     async def test_raises_unavailable_when_counter_is_corrupt(self):
@@ -417,11 +411,10 @@ class TestCheckRateLimit:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             return_value=mock_redis,
-        ):
-            with pytest.raises(RateLimitUnavailable):
-                await check_rate_limit(
-                    _USER, daily_cost_limit=10000, weekly_cost_limit=50000
-                )
+        ), pytest.raises(RateLimitUnavailable):
+            await check_rate_limit(
+                _USER, daily_cost_limit=10000, weekly_cost_limit=50000
+            )
 
     @pytest.mark.asyncio
     async def test_zero_limit_means_blocked_not_unlimited(self):
@@ -1663,9 +1656,8 @@ class TestSetUserTier:
         with patch(
             "backend.copilot.rate_limit.PrismaUser.prisma",
             return_value=mock_prisma,
-        ):
-            with pytest.raises(prisma.errors.RecordNotFoundError):
-                await set_user_tier(_USER, SubscriptionTier.ENTERPRISE)
+        ), pytest.raises(prisma.errors.RecordNotFoundError):
+            await set_user_tier(_USER, SubscriptionTier.ENTERPRISE)
 
     @pytest.mark.asyncio
     async def test_cache_invalidated_after_set(self):
@@ -2674,9 +2666,8 @@ class TestResetUserUsage:
         with patch(
             "backend.copilot.rate_limit.get_redis_async",
             side_effect=RedisError("down"),
-        ):
-            with pytest.raises(RedisError):
-                await reset_user_usage("user-1")
+        ), pytest.raises(RedisError):
+            await reset_user_usage("user-1")
 
 
 class TestWorkspaceStorageLimits:
@@ -2798,10 +2789,9 @@ class TestWarnIfStripeSubscriptionDriftsYearly:
             patch(
                 "backend.data.credit.get_subscription_price_id",
                 side_effect=price_lookup,
-            ),
+            ),caplog.at_level("WARNING", logger="backend.copilot.rate_limit")
         ):
-            with caplog.at_level("WARNING", logger="backend.copilot.rate_limit"):
-                await _warn_if_stripe_subscription_drifts(_USER, SubscriptionTier.PRO)
+            await _warn_if_stripe_subscription_drifts(_USER, SubscriptionTier.PRO)
 
         drift_records = [
             r for r in caplog.records if "will drift from Stripe" in r.getMessage()
@@ -2842,10 +2832,9 @@ class TestWarnIfStripeSubscriptionDriftsYearly:
             patch(
                 "backend.data.credit.get_subscription_price_id",
                 side_effect=price_lookup,
-            ),
+            ),caplog.at_level("WARNING", logger="backend.copilot.rate_limit")
         ):
-            with caplog.at_level("WARNING", logger="backend.copilot.rate_limit"):
-                await _warn_if_stripe_subscription_drifts(_USER, SubscriptionTier.PRO)
+            await _warn_if_stripe_subscription_drifts(_USER, SubscriptionTier.PRO)
 
         drift_records = [
             r for r in caplog.records if "will drift from Stripe" in r.getMessage()

@@ -821,10 +821,9 @@ async def test_cancel_stripe_subscription_raises_on_list_failure():
         patch(
             "backend.data.credit.stripe.Subscription.list_async",
             side_effect=stripe.StripeError("network error"),
-        ),
+        ),pytest.raises(stripe.StripeError)
     ):
-        with pytest.raises(stripe.StripeError):
-            await cancel_stripe_subscription("user-1")
+        await cancel_stripe_subscription("user-1")
 
 
 @pytest.mark.asyncio
@@ -1146,14 +1145,13 @@ async def test_create_subscription_checkout_no_price_raises(checkout_guard):
         "backend.data.credit.get_subscription_price_id",
         new_callable=AsyncMock,
         return_value=None,
-    ):
-        with pytest.raises(ValueError, match="not available"):
-            await create_subscription_checkout(
-                user_id="user-1",
-                tier=SubscriptionTier.PRO,
-                success_url="https://app.example.com/success",
-                cancel_url="https://app.example.com/cancel",
-            )
+    ), pytest.raises(ValueError, match="not available"):
+        await create_subscription_checkout(
+            user_id="user-1",
+            tier=SubscriptionTier.PRO,
+            success_url="https://app.example.com/success",
+            cancel_url="https://app.example.com/cancel",
+        )
 
 
 @pytest.fixture
@@ -1779,10 +1777,9 @@ async def test_cancel_stripe_subscription_raises_on_cancel_error():
         patch(
             "backend.data.credit.stripe.Subscription.modify_async",
             side_effect=stripe_mod.StripeError("network error"),
-        ),
+        ),pytest.raises(stripe_mod.StripeError)
     ):
-        with pytest.raises(stripe_mod.StripeError):
-            await cancel_stripe_subscription("user-1")
+        await cancel_stripe_subscription("user-1")
 
 
 @pytest.mark.asyncio
@@ -2907,9 +2904,8 @@ async def test_modify_stripe_subscription_for_tier_raises_on_missing_price_id():
         "backend.data.credit.get_subscription_price_id",
         new_callable=AsyncMock,
         return_value=None,
-    ):
-        with pytest.raises(ValueError, match="No Stripe price ID configured"):
-            await modify_stripe_subscription_for_tier("user-1", SubscriptionTier.PRO)
+    ), pytest.raises(ValueError, match="No Stripe price ID configured"):
+        await modify_stripe_subscription_for_tier("user-1", SubscriptionTier.PRO)
 
 
 def test_tier_order_helpers():
@@ -3242,10 +3238,9 @@ async def test_modify_stripe_subscription_for_tier_pro_to_max_card_decline_does_
         patch(
             "backend.data.credit.set_subscription_tier",
             new_callable=AsyncMock,
-        ) as mock_set_tier,
+        ) as mock_set_tier,pytest.raises(stripe.CardError)
     ):
-        with pytest.raises(stripe.CardError):
-            await modify_stripe_subscription_for_tier("user-1", SubscriptionTier.MAX)
+        await modify_stripe_subscription_for_tier("user-1", SubscriptionTier.MAX)
 
     mock_set_tier.assert_not_awaited()
 
@@ -4222,10 +4217,9 @@ async def test_schedule_downgrade_rolls_back_orphan_on_modify_failure():
         patch(
             "backend.data.credit.stripe.SubscriptionSchedule.release_async",
             new_callable=AsyncMock,
-        ) as mock_release,
+        ) as mock_release,pytest.raises(stripe.APIConnectionError)
     ):
-        with pytest.raises(stripe.APIConnectionError):
-            await modify_stripe_subscription_for_tier("user-1", SubscriptionTier.PRO)
+        await modify_stripe_subscription_for_tier("user-1", SubscriptionTier.PRO)
 
     mock_create.assert_called_once_with(from_subscription="sub_biz")
     mock_schedule_modify.assert_called_once()
@@ -4248,9 +4242,8 @@ async def test_release_ignoring_terminal_reraises_non_terminal_error():
             "No such subscription_schedule: 'sub_sched_typo'",
             param="schedule",
         ),
-    ):
-        with pytest.raises(stripe.InvalidRequestError):
-            await _release_schedule_ignoring_terminal("sub_sched_typo", "test_context")
+    ), pytest.raises(stripe.InvalidRequestError):
+        await _release_schedule_ignoring_terminal("sub_sched_typo", "test_context")
 
 
 @pytest.mark.asyncio

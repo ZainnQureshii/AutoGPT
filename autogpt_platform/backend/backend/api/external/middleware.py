@@ -1,4 +1,3 @@
-from typing import Optional
 
 from autogpt_libs.auth.dependencies import ACCOUNT_BANNED_DETAIL
 from fastapi import FastAPI, HTTPException, Security, status
@@ -28,9 +27,9 @@ class VerifiedCredential(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    credential: Optional[str]
-    auth: Optional[APIAuthorizationInfo] = None
-    rejection: Optional[HTTPException] = None
+    credential: str | None
+    auth: APIAuthorizationInfo | None = None
+    rejection: HTTPException | None = None
 
 
 async def resolve_auth_info(
@@ -110,7 +109,7 @@ async def resolve_request_auth(
     return verified.auth
 
 
-def verified_credential(scope: Scope) -> Optional[VerifiedCredential]:
+def verified_credential(scope: Scope) -> VerifiedCredential | None:
     """What this request's credential already verified as, if it was checked."""
     verified = scope.get("state", {}).get(_REQUEST_AUTH)
     return verified if isinstance(verified, VerifiedCredential) else None

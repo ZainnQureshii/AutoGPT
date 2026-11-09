@@ -2,17 +2,14 @@ import asyncio
 import logging
 import queue
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from collections.abc import AsyncGenerator, Generator, Mapping
+from datetime import UTC, datetime, timedelta
 from enum import Enum, StrEnum
 from typing import (
     Annotated,
     Any,
-    AsyncGenerator,
-    Generator,
     Generic,
     Literal,
-    Mapping,
-    Optional,
     TypeVar,
     cast,
     overload,
@@ -104,12 +101,12 @@ class ExecutionContext(BaseModel):
     model_config = {"extra": "ignore"}
 
     # Execution identity
-    user_id: Optional[str] = None
-    graph_id: Optional[str] = None
-    graph_exec_id: Optional[str] = None
-    graph_version: Optional[int] = None
-    node_id: Optional[str] = None
-    node_exec_id: Optional[str] = None
+    user_id: str | None = None
+    graph_id: str | None = None
+    graph_exec_id: str | None = None
+    graph_version: int | None = None
+    node_id: str | None = None
+    node_exec_id: str | None = None
 
     # Safety settings
     human_in_the_loop_safe_mode: bool = True
@@ -120,30 +117,30 @@ class ExecutionContext(BaseModel):
     user_timezone: str = "UTC"
 
     # Execution hierarchy
-    root_execution_id: Optional[str] = None
-    parent_execution_id: Optional[str] = None
+    root_execution_id: str | None = None
+    parent_execution_id: str | None = None
 
     # File workspace (UserWorkspace — NOT the Team concept)
-    workspace_id: Optional[str] = None
-    session_id: Optional[str] = None
+    workspace_id: str | None = None
+    session_id: str | None = None
 
     # Org/team tenancy context
-    organization_id: Optional[str] = None
-    team_id: Optional[str] = None
+    organization_id: str | None = None
+    team_id: str | None = None
     # Set when the run is queued, never after: its charges go to its user's own
     # wallet, as its org was their personal org. False bills organization_id.
     bills_own_wallet: bool = False
 
     # Expert attribution: carried at runtime so billing can meter per-expert
     # spend and the executor can post run results into the expert's thread.
-    expert_id: Optional[str] = None
+    expert_id: str | None = None
 
     # The chat that started this run, whose approval gate answers its review
     # pauses; None for any run no chat started.
-    approval_chat_id: Optional[str] = None
+    approval_chat_id: str | None = None
     # The workflow's own sensitive_action_safe_mode, before a chat forced the
     # pause on; None on a context that predates it.
-    graph_sensitive_action_safe_mode: Optional[bool] = None
+    graph_sensitive_action_safe_mode: bool | None = None
 
 
 # -------------------------- Models -------------------------- #
@@ -231,40 +228,40 @@ class GraphExecutionMeta(BaseDbModel):
     user_id: str
     graph_id: str
     graph_version: int
-    inputs: Optional[GraphInput]  # no default -> required in the OpenAPI spec
-    credential_inputs: Optional[dict[str, CredentialsMetaInput]]
-    nodes_input_masks: Optional[dict[str, BlockInput]]
-    preset_id: Optional[str]
+    inputs: GraphInput | None  # no default -> required in the OpenAPI spec
+    credential_inputs: dict[str, CredentialsMetaInput] | None
+    nodes_input_masks: dict[str, BlockInput] | None
+    preset_id: str | None
     status: ExecutionStatus
-    started_at: Optional[datetime] = Field(
+    started_at: datetime | None = Field(
         None,
         description="When execution started running. Null if not yet started (QUEUED).",
     )
-    ended_at: Optional[datetime] = Field(
+    ended_at: datetime | None = Field(
         None,
         description="When execution finished. Null if not yet completed (QUEUED, RUNNING, INCOMPLETE, REVIEW).",
     )
     is_shared: bool = False
-    share_token: Optional[str] = None
+    share_token: str | None = None
     is_dry_run: bool = False
     # Org/team tenancy. Surfaced from the DB row so the runtime
     # ExecutionContext (and billing) can recover org/team on resume/requeue
     # paths where the caller doesn't re-supply them.
-    organization_id: Optional[str] = None
-    team_id: Optional[str] = None
+    organization_id: str | None = None
+    team_id: str | None = None
 
     # Expert attribution, surfaced from the DB row for the same
     # resume/requeue recovery reason as org/team above.
-    expert_id: Optional[str] = None
+    expert_id: str | None = None
 
     # How the run was started (ExecutionTrigger value) and by what. Null on
     # rows created before the columns existed.
-    trigger_source: Optional[str] = None
-    trigger_ref: Optional[str] = None
+    trigger_source: str | None = None
+    trigger_ref: str | None = None
     # What started this run, when it was not a person: the scheduler job or
     # the webhook that fired. Soft references; either may be gone by now.
-    schedule_id: Optional[str] = None
-    webhook_id: Optional[str] = None
+    schedule_id: str | None = None
+    webhook_id: str | None = None
 
     class Stats(BaseModel):
         model_config = ConfigDict(
@@ -517,8 +514,8 @@ class GraphExecutionWithNodes(GraphExecution):
     def to_graph_execution_entry(
         self,
         execution_context: ExecutionContext,
-        compiled_nodes_input_masks: Optional[NodesInputMasks] = None,
-        nodes_to_skip: Optional[set[str]] = None,
+        compiled_nodes_input_masks: NodesInputMasks | None = None,
+        nodes_to_skip: set[str] | None = None,
     ):
         return GraphExecutionEntry(
             user_id=self.user_id,
@@ -550,7 +547,7 @@ class NodeExecutionResult(BaseModel):
     @staticmethod
     def from_db(
         _node_exec: AgentNodeExecution,
-        user_id: Optional[str] = None,
+        user_id: str | None = None,
         graph_execution: AgentGraphExecution | None = None,
     ):
         """`graph_execution` is the parent run, for a node execution read
@@ -639,23 +636,23 @@ class NodeExecutionResult(BaseModel):
 
 
 async def get_graph_executions(
-    graph_exec_id: Optional[str] = None,
-    execution_ids: Optional[list[str]] = None,
-    graph_id: Optional[str] = None,
-    graph_version: Optional[int] = None,
-    user_id: Optional[str] = None,
-    statuses: Optional[list[ExecutionStatus]] = None,
-    created_time_gte: Optional[datetime] = None,
-    created_time_lte: Optional[datetime] = None,
-    started_time_gte: Optional[datetime] = None,
-    started_time_lte: Optional[datetime] = None,
-    limit: Optional[int] = None,
-    team_id: Optional[str] = None,
-    offset: Optional[int] = None,
+    graph_exec_id: str | None = None,
+    execution_ids: list[str] | None = None,
+    graph_id: str | None = None,
+    graph_version: int | None = None,
+    user_id: str | None = None,
+    statuses: list[ExecutionStatus] | None = None,
+    created_time_gte: datetime | None = None,
+    created_time_lte: datetime | None = None,
+    started_time_gte: datetime | None = None,
+    started_time_lte: datetime | None = None,
+    limit: int | None = None,
+    team_id: str | None = None,
+    offset: int | None = None,
     order_by: Literal["createdAt", "startedAt", "updatedAt"] = "createdAt",
     order_direction: Literal["asc", "desc"] = "desc",
-    expert_id: Optional[str] = None,
-    organization_id: Optional[str] = None,
+    expert_id: str | None = None,
+    organization_id: str | None = None,
     deleted: bool = False,
 ) -> list[GraphExecutionMeta]:
     """
@@ -699,13 +696,13 @@ async def get_graph_executions(
         where_filter["expertId"] = expert_id
     if created_time_gte or created_time_lte:
         where_filter["createdAt"] = {
-            "gte": created_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": created_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": created_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": created_time_lte or datetime.max.replace(tzinfo=UTC),
         }
     if started_time_gte or started_time_lte:
         where_filter["startedAt"] = {
-            "gte": started_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": started_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": started_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": started_time_lte or datetime.max.replace(tzinfo=UTC),
         }
     if statuses:
         where_filter["OR"] = [{"executionStatus": status} for status in statuses]
@@ -737,15 +734,15 @@ async def get_graph_executions(
 
 
 async def get_graph_executions_count(
-    user_id: Optional[str] = None,
-    graph_id: Optional[str] = None,
-    statuses: Optional[list[ExecutionStatus]] = None,
-    created_time_gte: Optional[datetime] = None,
-    created_time_lte: Optional[datetime] = None,
-    started_time_gte: Optional[datetime] = None,
-    started_time_lte: Optional[datetime] = None,
-    updated_time_gte: Optional[datetime] = None,
-    updated_time_lte: Optional[datetime] = None,
+    user_id: str | None = None,
+    graph_id: str | None = None,
+    statuses: list[ExecutionStatus] | None = None,
+    created_time_gte: datetime | None = None,
+    created_time_lte: datetime | None = None,
+    started_time_gte: datetime | None = None,
+    started_time_lte: datetime | None = None,
+    updated_time_gte: datetime | None = None,
+    updated_time_lte: datetime | None = None,
 ) -> int:
     """
     Get count of graph executions with optional filters.
@@ -776,20 +773,20 @@ async def get_graph_executions_count(
 
     if created_time_gte or created_time_lte:
         where_filter["createdAt"] = {
-            "gte": created_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": created_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": created_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": created_time_lte or datetime.max.replace(tzinfo=UTC),
         }
 
     if started_time_gte or started_time_lte:
         where_filter["startedAt"] = {
-            "gte": started_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": started_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": started_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": started_time_lte or datetime.max.replace(tzinfo=UTC),
         }
 
     if updated_time_gte or updated_time_lte:
         where_filter["updatedAt"] = {
-            "gte": updated_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": updated_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": updated_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": updated_time_lte or datetime.max.replace(tzinfo=UTC),
         }
 
     if statuses:
@@ -828,13 +825,13 @@ def _execution_visibility_filters(
 
 async def get_graph_executions_paginated(
     user_id: str,
-    graph_id: Optional[str] = None,
+    graph_id: str | None = None,
     page: int = 1,
     page_size: int = 25,
-    statuses: Optional[list[ExecutionStatus]] = None,
-    created_time_gte: Optional[datetime] = None,
-    created_time_lte: Optional[datetime] = None,
-    organization_id: Optional[str] = None,
+    statuses: list[ExecutionStatus] | None = None,
+    created_time_gte: datetime | None = None,
+    created_time_lte: datetime | None = None,
+    organization_id: str | None = None,
 ) -> GraphExecutionsPaginated:
     """Get paginated graph executions for a specific graph.
 
@@ -857,8 +854,8 @@ async def get_graph_executions_paginated(
         where_filter["agentGraphId"] = graph_id
     if created_time_gte or created_time_lte:
         where_filter["createdAt"] = {
-            "gte": created_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": created_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": created_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": created_time_lte or datetime.max.replace(tzinfo=UTC),
         }
     if statuses:
         where_filter["OR"] = [{"executionStatus": status} for status in statuses]
@@ -985,18 +982,18 @@ async def create_graph_execution(
     starting_nodes_input: list[tuple[str, BlockInput]],  # list[(node_id, BlockInput)]
     inputs: Mapping[str, JsonValue],
     user_id: str,  # Validated by callers (API auth layer / service-level checks)
-    preset_id: Optional[str] = None,
-    credential_inputs: Optional[Mapping[str, CredentialsMetaInput]] = None,
-    nodes_input_masks: Optional[NodesInputMasks] = None,
-    parent_graph_exec_id: Optional[str] = None,
+    preset_id: str | None = None,
+    credential_inputs: Mapping[str, CredentialsMetaInput] | None = None,
+    nodes_input_masks: NodesInputMasks | None = None,
+    parent_graph_exec_id: str | None = None,
     is_dry_run: bool = False,
-    organization_id: Optional[str] = None,
-    team_id: Optional[str] = None,
-    expert_id: Optional[str] = None,
-    trigger_source: Optional[ExecutionTrigger] = None,
-    trigger_ref: Optional[str] = None,
-    schedule_id: Optional[str] = None,
-    webhook_id: Optional[str] = None,
+    organization_id: str | None = None,
+    team_id: str | None = None,
+    expert_id: str | None = None,
+    trigger_source: ExecutionTrigger | None = None,
+    trigger_ref: str | None = None,
+    schedule_id: str | None = None,
+    webhook_id: str | None = None,
 ) -> GraphExecutionWithNodes:
     """
     Create a new AgentGraphExecution record.
@@ -1038,7 +1035,7 @@ async def create_graph_execution(
                     AgentNodeExecutionCreateInput(
                         agentNodeId=node_id,
                         executionStatus=ExecutionStatus.QUEUED,
-                        queuedTime=datetime.now(tz=timezone.utc),
+                        queuedTime=datetime.now(tz=UTC),
                         Input={
                             "create": [
                                 {"name": name, "data": SafeJson(data)}
@@ -1133,7 +1130,7 @@ async def upsert_execution_input(
         "Input": {
             "none": {
                 "name": input_name,
-                "time": {"gte": datetime.now(tz=timezone.utc) - timedelta(days=1)},
+                "time": {"gte": datetime.now(tz=UTC) - timedelta(days=1)},
             }
         },
     }
@@ -1229,7 +1226,7 @@ async def update_graph_execution_start_time(
         where={"id": graph_exec_id},
         data={
             "executionStatus": ExecutionStatus.RUNNING,
-            "startedAt": datetime.now(tz=timezone.utc),
+            "startedAt": datetime.now(tz=UTC),
         },
         include=graph_execution_include(
             [*get_io_block_ids(), *get_webhook_block_ids()]
@@ -1296,7 +1293,7 @@ async def update_graph_execution_stats(
         update_data["executionStatus"] = status
         # Set endedAt when execution reaches a terminal status
         if status in TERMINAL_GRAPH_EXECUTION_STATUSES:
-            update_data["endedAt"] = datetime.now(tz=timezone.utc)
+            update_data["endedAt"] = datetime.now(tz=UTC)
 
     where_clause: AgentGraphExecutionWhereInput = {"id": graph_exec_id}
 
@@ -1432,7 +1429,7 @@ def _get_update_status_data(
     execution_data: BlockInput | None = None,
     stats: dict[str, Any] | None = None,
 ) -> AgentNodeExecutionUpdateInput:
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     update_data: AgentNodeExecutionUpdateInput = {"executionStatus": status}
 
     if status == ExecutionStatus.QUEUED:
@@ -1502,8 +1499,8 @@ def _build_node_execution_where_clause(
 
     if created_time_gte or created_time_lte:
         where_clause["addedTime"] = {
-            "gte": created_time_gte or datetime.min.replace(tzinfo=timezone.utc),
-            "lte": created_time_lte or datetime.max.replace(tzinfo=timezone.utc),
+            "gte": created_time_gte or datetime.min.replace(tzinfo=UTC),
+            "lte": created_time_lte or datetime.max.replace(tzinfo=UTC),
         }
 
     return where_clause
@@ -1577,7 +1574,7 @@ class GraphExecutionEntry(BaseModel):
     graph_exec_id: str
     graph_id: str
     graph_version: int
-    nodes_input_masks: Optional[NodesInputMasks] = None
+    nodes_input_masks: NodesInputMasks | None = None
     nodes_to_skip: set[str] = Field(default_factory=set)
     """Node IDs that should be skipped due to optional credentials not being configured."""
     execution_context: ExecutionContext = Field(default_factory=ExecutionContext)
@@ -1601,24 +1598,24 @@ class NodeExecutionEntry(BaseModel):
     # estimates JSON (which could have been hot-swapped between charge and
     # reconcile, leaving the delta computed against a different number).
     # Excluded from dumps — in-memory only, scoped to a single live execution.
-    pre_flight_charge: Optional[int] = Field(default=None, exclude=True)
+    pre_flight_charge: int | None = Field(default=None, exclude=True)
     # The status a REVIEW/RUNNING row had when a resumed or redelivered run
     # dispatched it again. Its first dispatch was already charged, so this
     # one must not be (#15272), and the status says what is still billed:
     # see `billing.redispatch_reconcile_baseline`. Also exclude=True.
-    redispatched_from: Optional[ExecutionStatus] = Field(default=None, exclude=True)
+    redispatched_from: ExecutionStatus | None = Field(default=None, exclude=True)
     # When the node was queued and by what: ``graph_start`` for a node queued
     # before this executor picked the run up (an entry node, or one left
     # queued by an interrupted run), ``node_output`` for one queued by an
     # upstream node's output during the run. In-memory only, for the node's
     # queue wait on its Sentry transaction.
-    queued_at: Optional[datetime] = Field(default=None, exclude=True)
-    queued_by: Optional[Literal["graph_start", "node_output"]] = Field(
+    queued_at: datetime | None = Field(default=None, exclude=True)
+    queued_by: Literal["graph_start", "node_output"] | None = Field(
         default=None, exclude=True
     )
     # The node is queued only to fail on an input it can't use, so it isn't
     # billed. In-memory only; a restart derives it again from the inputs.
-    input_error: Optional[str] = Field(default=None, exclude=True)
+    input_error: str | None = Field(default=None, exclude=True)
 
 
 class ExecutionQueue(Generic[T]):
@@ -1677,7 +1674,7 @@ class SharedExecutionResponse(BaseModel):
 
     id: str
     graph_name: str
-    graph_description: Optional[str]
+    graph_description: str | None
     status: ExecutionStatus
     created_at: datetime
     outputs: CompletedBlockOutput  # Only the final outputs, no intermediate data
@@ -2117,7 +2114,7 @@ async def get_frequently_executed_graphs(
     ORDER BY execution_count DESC
     """
 
-    start_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+    start_date = datetime.now(UTC) - timedelta(days=days_back)
     result = await query_raw_with_schema(query_template, start_date, min_executions)
 
     return [

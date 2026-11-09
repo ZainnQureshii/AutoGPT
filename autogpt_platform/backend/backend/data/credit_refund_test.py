@@ -5,7 +5,7 @@ These tests ensure that refund operations (deduct_credits, handle_dispute)
 are atomic and maintain data consistency.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -96,7 +96,7 @@ async def test_deduct_credits_atomic(server: SpinTestServer):
         refund.amount = 500  # Refund $5 of the $10 top-up
         refund.status = "succeeded"
         refund.reason = "requested_by_customer"
-        refund.created = int(datetime.now(timezone.utc).timestamp())
+        refund.created = int(datetime.now(UTC).timestamp())
 
         # Create refund request record (simulating webhook flow)
         await CreditRefundRequest.prisma().create(
@@ -223,7 +223,7 @@ async def test_handle_dispute_with_sufficient_balance(
         dispute.amount = 100  # Small dispute amount
         dispute.status = "needs_response"
         dispute.reason = "fraudulent"
-        dispute.created = int(datetime.now(timezone.utc).timestamp())
+        dispute.created = int(datetime.now(UTC).timestamp())
 
         # Mock the close method to prevent real API calls
         dispute.close = MagicMock()
@@ -279,7 +279,7 @@ async def test_handle_dispute_with_insufficient_balance(
         dispute.payment_intent = topup_tx.transactionKey
         dispute.amount = 1000
         dispute.status = "needs_response"
-        dispute.created = int(datetime.now(timezone.utc).timestamp())
+        dispute.created = int(datetime.now(UTC).timestamp())
 
         # Mock the close method to prevent real API calls
         dispute.close = MagicMock()
@@ -516,7 +516,7 @@ async def test_concurrent_refunds(server: SpinTestServer):
             refund.amount = 100  # $1 refund
             refund.status = "succeeded"
             refund.reason = "requested_by_customer"
-            refund.created = int(datetime.now(timezone.utc).timestamp())
+            refund.created = int(datetime.now(UTC).timestamp())
 
             try:
                 await credit_system.deduct_credits(refund)

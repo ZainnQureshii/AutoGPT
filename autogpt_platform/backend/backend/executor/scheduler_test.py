@@ -2,7 +2,7 @@ import asyncio
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -291,7 +291,7 @@ class TestAddCopilotTurnScheduleExpertAttribution:
                 user_id="user-1",
                 session_id=None,
                 message="check CI",
-                run_at=datetime(2026, 5, 24, 4, 0, tzinfo=timezone.utc),
+                run_at=datetime(2026, 5, 24, 4, 0, tzinfo=UTC),
                 user_timezone="UTC",
                 expert_id=expert_id,
             )
@@ -324,7 +324,7 @@ class TestUpdateGraphExecutionSchedule:
         job.trigger = _build_trigger(
             cron="0 9 * * 1,2,3,4,5", run_at=None, user_timezone="UTC"
         )
-        job.next_run_time = None if paused else datetime.now(timezone.utc)
+        job.next_run_time = None if paused else datetime.now(UTC)
         if kind == "graph":
             job.kwargs = GraphExecutionJobArgs(
                 schedule_id="sched-1",
@@ -457,11 +457,11 @@ class TestAddCommunityRebuildSchedule:
         with patch("backend.executor.scheduler.run_async", return_value=True):
             s.add_community_rebuild_schedule(user_id="abc", user_timezone="UTC")
         trigger = s.scheduler.add_job.call_args.kwargs["trigger"]
-        sunday = datetime(2026, 9, 27, tzinfo=timezone.utc)
+        sunday = datetime(2026, 9, 27, tzinfo=UTC)
 
         fires = trigger.get_next_fire_time(None, sunday)
 
-        assert fires == datetime(2026, 9, 28, 4, tzinfo=timezone.utc)
+        assert fires == datetime(2026, 9, 28, 4, tzinfo=UTC)
         assert fires.strftime("%A") == "Monday"
 
     def test_empty_timezone_falls_back_to_utc(self) -> None:
@@ -475,7 +475,7 @@ class TestAddCommunityRebuildSchedule:
 
     def test_next_run_time_isoformatted_when_present(self) -> None:
         s = _stub_scheduler()
-        nrt = datetime(2026, 5, 24, 4, 0, tzinfo=timezone.utc)
+        nrt = datetime(2026, 5, 24, 4, 0, tzinfo=UTC)
         s.scheduler.add_job.return_value = MagicMock(
             id="community_rebuild_abc", next_run_time=nrt
         )
@@ -809,7 +809,7 @@ class TestAddSkillLearningSchedule:
     def test_a_cron_in_that_timezone_is_kept_and_reported_registered(self) -> None:
         """The registry records the id it gets back, so a kept cron must not
         come back as a skip; its overdue next run is not pushed back."""
-        overdue = datetime(2026, 8, 7, 8, tzinfo=timezone.utc)
+        overdue = datetime(2026, 8, 7, 8, tzinfo=UTC)
         existing = MagicMock(
             id="skill_learning_nightly_abc",
             next_run_time=overdue,
@@ -986,7 +986,7 @@ class TestSkillLearningScopeGate:
             user_id="abc",
             run_id="learn-1",
             trigger="nightly",
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
         )
         with (
             patch("backend.executor.scheduler.run_async", new=_run_coroutine),
@@ -1194,8 +1194,8 @@ def _nightly_result(**overrides):
     defaults = {
         "user_id": "abc",
         "nightly_id": "nightly-1",
-        "started_at": datetime.now(timezone.utc),
-        "completed_at": datetime.now(timezone.utc),
+        "started_at": datetime.now(UTC),
+        "completed_at": datetime.now(UTC),
         "elapsed_seconds": 1.0,
     }
     defaults.update(overrides)
@@ -1213,7 +1213,7 @@ def _dream_result(**overrides):
 def _ratification_result(**overrides):
     from backend.copilot.dream.ratification import RatificationResult
 
-    defaults = {"user_id": "abc", "started_at": datetime.now(timezone.utc)}
+    defaults = {"user_id": "abc", "started_at": datetime.now(UTC)}
     defaults.update(overrides)
     return RatificationResult(**defaults)
 
@@ -1646,7 +1646,7 @@ async def test_copilot_turn_schedule_one_shot(server: SpinTestServer):
     )
     assert existing == []
 
-    run_at = datetime.now(tz=timezone.utc) + timedelta(hours=1)
+    run_at = datetime.now(tz=UTC) + timedelta(hours=1)
     schedule = await scheduler.add_copilot_turn_schedule(
         user_id=test_user.id,
         session_id=session_id,

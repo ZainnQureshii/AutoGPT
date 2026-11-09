@@ -2,7 +2,7 @@
 
 import base64
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 from urllib.parse import parse_qs, urlparse
 
@@ -134,7 +134,7 @@ def _token_for(user_id: str) -> str:
 
 
 def _user_row(user_id: str) -> PrismaUser:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return PrismaUser(
         id=user_id,
         email="user@example.com",

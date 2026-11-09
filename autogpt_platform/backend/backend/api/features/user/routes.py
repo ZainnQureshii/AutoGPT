@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from autogpt_libs.auth import get_user_id, requires_user
@@ -70,7 +70,7 @@ async def get_or_create_user_route(
         mark_internal_on_sign_in(user.id, user.email, user_data.get("role"))
 
     # Fire-and-forget: populate business understanding from Tally form.
-    age_seconds = (datetime.now(timezone.utc) - user.created_at).total_seconds()
+    age_seconds = (datetime.now(UTC) - user.created_at).total_seconds()
     if age_seconds < 30:
         try:
             from backend.data.tally import populate_understanding_from_tally
