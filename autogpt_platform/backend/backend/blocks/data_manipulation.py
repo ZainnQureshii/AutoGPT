@@ -1,4 +1,6 @@
-import builtins
+# ruff: noqa: UP006, UP035
+# UP006: Use `list` instead of `List` - disabled because field names shadow builtin
+# UP035: `typing.List` deprecated - disabled for same reason
 import json
 from typing import Any, List
 
